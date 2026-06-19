@@ -18,6 +18,8 @@ class DashboardCache:
         self._ttl = ttl_seconds
 
     def is_fresh(self) -> bool:
+        if self._ttl <= 0:
+            return False  # zero/negative TTL => always stale (deterministic)
         try:
             age = time.time() - self._path.stat().st_mtime
         except OSError:
