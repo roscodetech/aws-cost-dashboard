@@ -49,14 +49,20 @@ class AwsClients:
     def organizations(self):
         return self._client("organizations")
 
+    @property
+    def sts(self):
+        return self._client("sts")
+
     def validate(self) -> str:
-        """Cheap read to confirm creds work. Returns the management account id."""
+        """Cheap read to confirm creds work. Returns the caller's account id.
+
+        Uses STS GetCallerIdentity (always allowed for any valid principal and
+        works whether or not the account belongs to an Organization).
+        """
         try:
-            org = self.organizations.describe_organization()
-            return org["Organization"]["MasterAccountId"]
+            return self.sts.get_caller_identity()["Account"]
         except (ClientError, BotoCoreError) as exc:
             raise AwsAuthError(
-                "AWS credentials are missing, invalid, or lack billing/"
-                "Organizations read access. Check your IAM user and policy. "
-                f"({exc})"
+                "AWS credentials are missing or invalid. Check the access key "
+                f"and secret in your .env. ({exc})"
             ) from exc

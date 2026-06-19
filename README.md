@@ -136,5 +136,10 @@ AWS_COST_DASHBOARD_LIVE=1 python -m pytest -m live
 
 ## Scope notes (v1)
 
-- Per-linked-account budgets need credentials in each account → only payer budgets shown.
+- Works for both a **standalone account** and an **AWS Organizations payer**. With an
+  org, every linked account is listed by name; standalone runs in single-account mode
+  (the account is labelled by its id). Detection is automatic via STS + a graceful
+  fallback when `organizations:ListAccounts` reports no organization.
+- Per-linked-account budgets need credentials in each account → only the calling
+  account's budgets are shown.
 - No write/mutate operations of any kind.

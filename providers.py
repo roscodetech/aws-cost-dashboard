@@ -56,6 +56,9 @@ class LiveProvider:
     def _build(self) -> DashboardData:
         account_id = self._clients.validate()
         names = OrgService(self._clients).account_names()
+        if not names:
+            # Standalone account (no Organization): label the single account by id.
+            names = {account_id: f"AWS account {account_id}"}
         cost = CostService(self._clients)
         accounts = cost.account_costs(names)
         by_service = cost.services_by_account()
