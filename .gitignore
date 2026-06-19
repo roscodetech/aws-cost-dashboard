@@ -1,0 +1,27 @@
+# Secrets / config
+.env
+*.pem
+credits.json
+.cache/
+cache.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Playwright
+test-results/
+playwright-report/
+.playwright/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
