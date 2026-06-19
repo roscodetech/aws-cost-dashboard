@@ -97,8 +97,11 @@
             {% endif %}
           </div>
 
+          {% if not credit or credit.source != 'api' %}
+          {# Manual fallback only — hidden once balances come from billing:GetCredits #}
           <details class="credit-edit">
-            <summary>Edit credit balance</summary>
+            <summary>Edit credit balance (manual)</summary>
+            <p class="credit-hint">Used only when the billing:GetCredits API is unavailable (missing <code>billing:GetCredits</code> permission or billing IAM access not activated).</p>
             <form method="POST" action="/credits" class="credit-form">
               <input type="hidden" name="account_id" value="{{ a.account_id }}">
               <label>Balance
@@ -114,6 +117,7 @@
               <button type="submit" class="btn-save">Save</button>
             </form>
           </details>
+          {% endif %}
         </article>
       {% endfor %}
     </section>

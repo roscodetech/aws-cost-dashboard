@@ -136,3 +136,9 @@ body {
   padding: 1px 5px;
   vertical-align: middle;
 }
+
+.credit-hint {
+  font-size: 0.72rem;
+  color: #6b7280;
+  margin: 4px 0 8px;
+}
