@@ -32,7 +32,7 @@ and attach a custom policy with the contents of [`iam-policy.json`](./iam-policy
 
 ```
 ce:GetCostAndUsage, ce:GetCostForecast, ce:GetDimensionValues,
-budgets:ViewBudget, budgets:DescribeBudget*,
+budgets:ViewBudget,
 organizations:ListAccounts, organizations:DescribeOrganization
 ```
 
