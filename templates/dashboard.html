@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{%- macro money(amount, currency) -%}
+{{ "%.2f"|format(amount or 0) }} {{ currency }}
+{%- endmacro -%}
+
+{% block content %}
+<div id="error-banner" class="error-banner{% if not error %} hidden{% endif %}">
+  <span id="error-text">{{ error if error else "" }}</span>
+  <button type="button" class="error-dismiss" onclick="this.parentElement.classList.add('hidden')">&times;</button>
+</div>
+
+{% if data %}
+  {# Build account_id -> credit lookup #}
+  {% set credit_map = {} %}
+  {% for c in data.credits %}
+    {% set _ = credit_map.update({c.account_id: c}) %}
+  {% endfor %}
+
+  <header class="topbar">
+    <div class="topbar-title">
+      <span class="accent-dot"></span>
+      <h1>AWS Cost Dashboard</h1>
+    </div>
+    <div class="topbar-stats">
+      <div class="stat">
+        <span class="stat-label">Total MTD</span>
+        <span class="stat-value big">{{ money(data.total_mtd, data.currency) }}</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Total Forecast</span>
+        <span class="stat-value">{{ money(data.total_forecast, data.currency) }}</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Last refreshed</span>
+        <span class="stat-value muted">{{ data.refreshed_at }}</span>
+      </div>
+      <button id="refresh-btn" class="btn-refresh">Refresh</button>
+    </div>
+  </header>
+
+  <main class="content">
+    <section class="card-grid">
+      {% for a in data.accounts %}
+        {% set credit = credit_map.get(a.account_id) %}
+        <article class="account-card" data-account-id="{{ a.account_id }}">
+          <div class="card-head">
+            <h2 class="acct-name">{{ a.name }}</h2>
+            <span class="acct-id">{{ a.account_id }}</span>
+          </div>
+
+          <div class="metrics">
+            <div class="metric">
+              <span class="metric-label">MTD</span>
+              <span class="metric-value">{{ money(a.mtd_cost, a.currency) }}</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Last month</span>
+              <span class="metric-value">{{ money(a.last_month_cost, a.currency) }}</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Forecast</span>
+              <span class="metric-value">{{ money(a.forecast, a.currency) }}</span>
+            </div>
+          </div>
+
+          <div class="chart-wrap">
+            <canvas class="service-chart" data-account-id="{{ a.account_id }}"></canvas>
+          </div>
+
+          <div class="credit-box">
+            {% if credit %}
+              <div class="credit-row">
+                <span class="credit-label">Credits applied this month</span>
+                <span class="credit-value">{{ money(credit.applied_mtd, a.currency) }}</span>
+              </div>
+              <div class="credit-row">
+                <span class="credit-label">Remaining balance</span>
+                <span class="credit-value">
+                  {% if credit.remaining_balance is not none %}{{ money(credit.remaining_balance, a.currency) }}{% else %}&mdash;{% endif %}
+                </span>
+              </div>
+              {% if credit.expiry %}
+                <div class="credit-row"><span class="credit-label">Expiry</span><span class="credit-value">{{ credit.expiry }}</span></div>
+              {% endif %}
+              {% if credit.note %}
+                <div class="credit-note">{{ credit.note }}</div>
+              {% endif %}
+            {% else %}
+              <div class="credit-row muted">No credit info for this account.</div>
+            {% endif %}
+          </div>
+
+          <details class="credit-edit">
+            <summary>Edit credit balance</summary>
+            <form method="POST" action="/credits" class="credit-form">
+              <input type="hidden" name="account_id" value="{{ a.account_id }}">
+              <label>Balance
+                <input type="number" step="0.01" name="balance"
+                       value="{% if credit and credit.remaining_balance is not none %}{{ credit.remaining_balance }}{% endif %}">
+              </label>
+              <label>Expiry
+                <input type="date" name="expiry" value="{{ credit.expiry if credit and credit.expiry else '' }}">
+              </label>
+              <label>Note
+                <input type="text" name="note" value="{{ credit.note if credit and credit.note else '' }}">
+              </label>
+              <button type="submit" class="btn-save">Save</button>
+            </form>
+          </details>
+        </article>
+      {% endfor %}
+    </section>
+
+    <section class="budgets">
+      <h2>Budgets</h2>
+      {% if data.budgets %}
+        <div class="budget-list">
+          {% for b in data.budgets %}
+            {% set pct = (b.actual / b.limit * 100) if b.limit else 0 %}
+            {% set pct_clamped = pct if pct < 100 else 100 %}
+            <div class="budget-row">
+              <div class="budget-head">
+                <span class="budget-name">{{ b.name }}</span>
+                <span class="budget-figures">
+                  {{ money(b.actual, data.currency) }} / {{ money(b.limit, data.currency) }}
+                  <span class="budget-forecast">forecast {{ money(b.forecasted, data.currency) }}</span>
+                </span>
+              </div>
+              <div class="progress">
+                <div class="progress-bar{% if pct >= 100 %} over{% endif %}" style="width: {{ "%.1f"|format(pct_clamped) }}%"></div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="muted">No budgets configured on the payer account.</p>
+      {% endif %}
+    </section>
+  </main>
+
+  {# by_service data bridge #}
+  {% set service_payload = {} %}
+  {% for acct_id, services in data.by_service.items() %}
+    {% set _ = service_payload.update({acct_id: services | list}) %}
+  {% endfor %}
+  <script id="service-data" type="application/json">
+    {
+      {%- for acct_id, services in data.by_service.items() %}
+      {{ acct_id | tojson }}: [
+        {%- for s in services %}
+        {"service": {{ s.service | tojson }}, "amount": {{ s.amount | tojson }}}{% if not loop.last %},{% endif %}
+        {%- endfor %}
+      ]{% if not loop.last %},{% endif %}
+      {%- endfor %}
+    }
+  </script>
+{% else %}
+  <main class="content empty-state">
+    <h1>AWS Cost Dashboard</h1>
+    <p class="muted">Check your credentials and refresh.</p>
+  </main>
+{% endif %}
+{% endblock %}
