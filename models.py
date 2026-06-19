@@ -33,6 +33,9 @@ class CreditInfo:
     remaining_balance: float | None
     expiry: str | None
     note: str | None
+    initial_balance: float | None = None
+    estimated_remaining: float | None = None
+    source: str = "manual"  # "api" (billing:GetCredits) or "manual" (credits.json)
 
 
 @dataclass(frozen=True)

@@ -81,12 +81,19 @@ Open http://127.0.0.1:5057.
 
 ## Credits
 
-AWS exposes credits **applied** (via Cost Explorer) but provides **no API for your
-remaining promotional credit balance**. So the dashboard lets you type the remaining
-balance in per account (the "Edit credit balance" form on each card), persisted to a
-gitignored `credits.json`. It's shown next to "applied this month" so you can watch
-the burn. Editing a balance patches the cached snapshot in place — it does **not**
-trigger a billed Cost Explorer call.
+The dashboard reads **real** credit balances from the `billing:GetCredits` API
+(issued / remaining / estimated-remaining / expiry — the exact figures on the console
+Credits page). These show with a **live** badge. Because the currently published
+boto3/botocore does not yet model this operation, the dashboard calls it via a
+SigV4-signed request to `https://billing.us-east-1.api.aws` (works with the installed
+SDK). Requires `billing:GetCredits` in the IAM policy (included in `iam-policy.json`).
+
+Credits **applied this month** still come from Cost Explorer (`RECORD_TYPE=Credit`),
+shown alongside the remaining balance so you can watch the burn.
+
+If the IAM principal lacks `billing:GetCredits`, the dashboard falls back to manual
+entry: the "Edit credit balance" form on each card, persisted to a gitignored
+`credits.json`. Manual edits patch the cached snapshot in place — no billed CE call.
 
 ## Currency
 

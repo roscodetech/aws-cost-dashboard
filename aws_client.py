@@ -32,6 +32,14 @@ class AwsClients:
             )
         self._cache: dict[str, object] = {}
 
+    @property
+    def session(self):
+        return self._session
+
+    @property
+    def region(self) -> str:
+        return self._config.region
+
     def _client(self, name: str):
         if name not in self._cache:
             self._cache[name] = self._session.client(name)

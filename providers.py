@@ -15,8 +15,9 @@ from budgets_service import BudgetsService
 from cache import DashboardCache
 from config import Config
 from cost_service import CostService
+from credits_api import CreditsApiService, CreditsApiUnavailable
 from credits_store import CreditsStore
-from models import DashboardData
+from models import CreditInfo, DashboardData
 from org_service import OrgService
 
 
@@ -63,7 +64,8 @@ class LiveProvider:
         accounts = cost.account_costs(names)
         by_service = cost.services_by_account()
         applied = cost.credits_applied()
-        credits = self._credits.build(applied, [a.account_id for a in accounts])
+        account_ids = [a.account_id for a in accounts]
+        credits = self._build_credits(account_id, account_ids, applied)
         budgets = BudgetsService(self._clients, account_id).budgets()
         currency = accounts[0].currency if accounts else "USD"
         return DashboardData(
@@ -74,6 +76,43 @@ class LiveProvider:
             currency=currency,
             refreshed_at=_now_iso(),
         )
+
+    def _build_credits(
+        self,
+        caller_account_id: str,
+        account_ids: list[str],
+        applied: dict[str, float],
+    ) -> tuple[CreditInfo, ...]:
+        """Prefer authoritative balances from billing:GetCredits; fall back to the
+        manual credits.json for any account the API can't (or isn't allowed to)
+        cover."""
+        try:
+            api = CreditsApiService(self._clients).credits_by_account(
+                caller_account_id, payer_account=len(account_ids) > 1
+            )
+        except (CreditsApiUnavailable, RuntimeError):
+            api = {}
+
+        manual = {c.account_id: c for c in self._credits.build(applied, account_ids)}
+        result: list[CreditInfo] = []
+        for acct in account_ids:
+            if acct in api:
+                a = api[acct]
+                result.append(
+                    CreditInfo(
+                        account_id=acct,
+                        applied_mtd=applied.get(acct, 0.0),
+                        remaining_balance=a.remaining,
+                        expiry=a.earliest_expiry,
+                        note=", ".join(a.names) or None,
+                        initial_balance=a.initial,
+                        estimated_remaining=a.estimated_remaining,
+                        source="api",
+                    )
+                )
+            else:
+                result.append(manual[acct])
+        return tuple(result)
 
     def update_credit(
         self,

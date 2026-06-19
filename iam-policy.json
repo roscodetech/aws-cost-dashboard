@@ -9,6 +9,8 @@
         "ce:GetCostForecast",
         "ce:GetDimensionValues",
         "budgets:ViewBudget",
+        "billing:GetCredits",
+        "billing:GetCreditAllocationHistory",
         "organizations:ListAccounts",
         "organizations:DescribeOrganization"
       ],

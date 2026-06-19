@@ -75,11 +75,17 @@
                 <span class="credit-value">{{ money(credit.applied_mtd, a.currency) }}</span>
               </div>
               <div class="credit-row">
-                <span class="credit-label">Remaining balance</span>
+                <span class="credit-label">Remaining balance{% if credit.source == 'api' %} <span class="credit-badge">live</span>{% endif %}</span>
                 <span class="credit-value">
                   {% if credit.remaining_balance is not none %}{{ money(credit.remaining_balance, a.currency) }}{% else %}&mdash;{% endif %}
                 </span>
               </div>
+              {% if credit.estimated_remaining is not none %}
+                <div class="credit-row"><span class="credit-label">Est. remaining (after open bills)</span><span class="credit-value">{{ money(credit.estimated_remaining, a.currency) }}</span></div>
+              {% endif %}
+              {% if credit.initial_balance is not none %}
+                <div class="credit-row"><span class="credit-label">Issued</span><span class="credit-value">{{ money(credit.initial_balance, a.currency) }}</span></div>
+              {% endif %}
               {% if credit.expiry %}
                 <div class="credit-row"><span class="credit-label">Expiry</span><span class="credit-value">{{ credit.expiry }}</span></div>
               {% endif %}
