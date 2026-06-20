@@ -60,7 +60,27 @@ This is account-wide (covers every IAM user/role), so you only do it once. Allow
 `AccessDeniedException: "IAM user access not activated"` (HTTP 403) even when the
 policy is correct — see [Troubleshooting](#troubleshooting).
 
-### 2. Configure credentials
+### 2. Configure accounts
+
+**Multiple accounts (recommended):** copy `accounts.example.json` to `accounts.json`
+(gitignored) and list each account. Every entry needs a `label` plus **either** a
+`profile` **or** `access_key_id` + `secret_access_key`; `region` is optional
+(defaults `us-east-1`):
+
+```json
+[
+  { "label": "Main",        "profile": "billing-readonly" },
+  { "label": "Side account", "access_key_id": "AKIA…", "secret_access_key": "…" }
+]
+```
+
+The dashboard pulls every listed account and shows them side by side. If one account's
+credentials fail, the others still load and the failure appears in a banner. Each
+account needs its own read-only IAM user **and** the billing-access toggle (steps 1 +
+1b) done *inside that account*.
+
+**Single account:** if `accounts.json` is absent, the dashboard falls back to one
+account from `.env`:
 
 ```bash
 cp .env.example .env
@@ -173,7 +193,7 @@ AWS_COST_DASHBOARD_LIVE=1 python -m pytest -m live
 ## Security
 
 - Root credentials are never used — dedicated read-only IAM user only.
-- `.env`, `credits.json`, `cache.json`, and any `*.pem` are gitignored.
+- `.env`, `accounts.json`, `credits.json`, `cache.json`, and any `*.pem` are gitignored.
 - No secrets in source; `.env.example` ships placeholders only.
 - The IAM policy is read-only and committed for reproducibility.
 

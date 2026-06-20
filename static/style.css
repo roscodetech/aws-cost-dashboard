@@ -142,3 +142,11 @@ body {
   color: #6b7280;
   margin: 4px 0 8px;
 }
+
+.error-banner.warn {
+  background: #fff7ed;
+  border-color: #fdba74;
+  color: #9a3412;
+  display: block;
+}
+.error-banner.warn ul { margin: 6px 0 0; padding-left: 20px; }

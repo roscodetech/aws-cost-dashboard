@@ -1,14 +1,14 @@
 """boto3 session and client construction (system boundary).
 
-Builds a single session from the resolved Config and hands out the three clients
-the services need. Validates credentials with one cheap call so the app fails fast.
+Builds a single session for one AccountConfig and hands out the clients the services
+need. Validates credentials with one cheap call so failures surface per account.
 """
 from __future__ import annotations
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
-from config import Config
+from config import AccountConfig
 
 
 class AwsAuthError(RuntimeError):
@@ -16,19 +16,19 @@ class AwsAuthError(RuntimeError):
 
 
 class AwsClients:
-    """Lazily-built, cached boto3 clients sharing one session."""
+    """Lazily-built, cached boto3 clients sharing one session for one account."""
 
-    def __init__(self, config: Config) -> None:
-        self._config = config
-        if config.uses_profile:
+    def __init__(self, account: AccountConfig) -> None:
+        self._account = account
+        if account.uses_profile:
             self._session = boto3.Session(
-                profile_name=config.profile, region_name=config.region
+                profile_name=account.profile, region_name=account.region
             )
         else:
             self._session = boto3.Session(
-                aws_access_key_id=config.access_key_id,
-                aws_secret_access_key=config.secret_access_key,
-                region_name=config.region,
+                aws_access_key_id=account.access_key_id,
+                aws_secret_access_key=account.secret_access_key,
+                region_name=account.region,
             )
         self._cache: dict[str, object] = {}
 
@@ -38,7 +38,7 @@ class AwsClients:
 
     @property
     def region(self) -> str:
-        return self._config.region
+        return self._account.region
 
     def _client(self, name: str):
         if name not in self._cache:

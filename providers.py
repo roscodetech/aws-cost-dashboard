@@ -4,20 +4,25 @@ A provider exposes ``get(force)`` returning a ``DashboardData`` and
 ``update_credit(...)`` for the manual remaining-balance edits. The Flask app
 depends only on this interface, which lets tests/E2E inject a fake provider with
 no AWS access.
+
+``LiveProvider`` pulls every account in the config, merges them into one
+``DashboardData``, and records per-account failures in ``DashboardData.errors`` so
+one bad credential never blanks the whole dashboard.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Protocol
 
-from aws_client import AwsClients
+from aws_client import AwsClients, AwsAuthError
 from budgets_service import BudgetsService
 from cache import DashboardCache
-from config import Config
+from config import AccountConfig, Config
 from cost_service import CostService
 from credits_api import CreditsApiService, CreditsApiUnavailable
 from credits_store import CreditsStore
-from models import CreditInfo, DashboardData
+from models import AccountCost, BudgetStatus, CreditInfo, DashboardData, ServiceCost
 from org_service import OrgService
 
 
@@ -36,12 +41,20 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+@dataclass
+class _AccountSlice:
+    accounts: tuple[AccountCost, ...]
+    by_service: dict[str, tuple[ServiceCost, ...]]
+    credits: tuple[CreditInfo, ...]
+    budgets: tuple[BudgetStatus, ...]
+    currency: str
+
+
 class LiveProvider:
-    """Builds DashboardData from AWS, cached to disk to limit Cost Explorer calls."""
+    """Builds DashboardData across all configured accounts, cached to disk."""
 
     def __init__(self, config: Config) -> None:
         self._config = config
-        self._clients = AwsClients(config)
         self._cache = DashboardCache(config.cache_path, config.cache_ttl_seconds)
         self._credits = CreditsStore(config.credits_path)
 
@@ -55,30 +68,55 @@ class LiveProvider:
         return data
 
     def _build(self) -> DashboardData:
-        account_id = self._clients.validate()
-        names = OrgService(self._clients).account_names()
-        if not names:
-            # Standalone account (no Organization): label the single account by id.
-            names = {account_id: f"AWS account {account_id}"}
-        cost = CostService(self._clients)
-        accounts = cost.account_costs(names)
-        by_service = cost.services_by_account()
-        applied = cost.credits_applied()
-        account_ids = [a.account_id for a in accounts]
-        credits = self._build_credits(account_id, account_ids, applied)
-        budgets = BudgetsService(self._clients, account_id).budgets()
-        currency = accounts[0].currency if accounts else "USD"
+        accounts: list[AccountCost] = []
+        by_service: dict[str, tuple[ServiceCost, ...]] = {}
+        credits: list[CreditInfo] = []
+        budgets: list[BudgetStatus] = []
+        errors: list[str] = []
+        currency = "USD"
+
+        for account_config in self._config.accounts:
+            try:
+                part = self._fetch_account(account_config)
+            except (AwsAuthError, RuntimeError) as exc:
+                errors.append(f"{account_config.label}: {exc}")
+                continue
+            accounts.extend(part.accounts)
+            by_service.update(part.by_service)
+            credits.extend(part.credits)
+            budgets.extend(part.budgets)
+            currency = part.currency or currency
+
         return DashboardData(
-            accounts=accounts,
+            accounts=tuple(accounts),
             by_service=by_service,
-            credits=credits,
-            budgets=budgets,
+            credits=tuple(credits),
+            budgets=tuple(budgets),
             currency=currency,
             refreshed_at=_now_iso(),
+            errors=tuple(errors),
         )
+
+    def _fetch_account(self, account_config: AccountConfig) -> _AccountSlice:
+        clients = AwsClients(account_config)
+        caller_id = clients.validate()
+        names = OrgService(clients).account_names()
+        if not names:
+            # Standalone account: label the single account by its config label.
+            names = {caller_id: account_config.label}
+        cost = CostService(clients)
+        account_costs = cost.account_costs(names)
+        by_service = cost.services_by_account()
+        applied = cost.credits_applied()
+        account_ids = [a.account_id for a in account_costs]
+        credits = self._build_credits(clients, caller_id, account_ids, applied)
+        budgets = BudgetsService(clients, caller_id).budgets()
+        currency = account_costs[0].currency if account_costs else "USD"
+        return _AccountSlice(account_costs, by_service, credits, budgets, currency)
 
     def _build_credits(
         self,
+        clients: AwsClients,
         caller_account_id: str,
         account_ids: list[str],
         applied: dict[str, float],
@@ -87,7 +125,7 @@ class LiveProvider:
         manual credits.json for any account the API can't (or isn't allowed to)
         cover."""
         try:
-            api = CreditsApiService(self._clients).credits_by_account(
+            api = CreditsApiService(clients).credits_by_account(
                 caller_account_id, payer_account=len(account_ids) > 1
             )
         except (CreditsApiUnavailable, RuntimeError):
@@ -139,5 +177,6 @@ class LiveProvider:
                 budgets=cached.budgets,
                 currency=cached.currency,
                 refreshed_at=cached.refreshed_at,
+                errors=cached.errors,
             )
         )

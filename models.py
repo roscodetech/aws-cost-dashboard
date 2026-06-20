@@ -55,6 +55,7 @@ class DashboardData:
     budgets: tuple[BudgetStatus, ...]
     currency: str
     refreshed_at: str  # ISO-8601 UTC
+    errors: tuple[str, ...] = ()  # per-account fetch failures (label: message)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -67,6 +68,7 @@ class DashboardData:
             "budgets": [asdict(b) for b in self.budgets],
             "currency": self.currency,
             "refreshed_at": self.refreshed_at,
+            "errors": list(self.errors),
         }
 
     @classmethod
@@ -81,6 +83,7 @@ class DashboardData:
             budgets=tuple(BudgetStatus(**b) for b in data["budgets"]),
             currency=data["currency"],
             refreshed_at=data["refreshed_at"],
+            errors=tuple(data.get("errors", [])),
         )
 
     @property

@@ -14,7 +14,7 @@ import pytest
 from werkzeug.serving import make_server
 
 from app import create_app
-from config import Config
+from config import AccountConfig, Config
 from models import (
     AccountCost,
     BudgetStatus,
@@ -99,10 +99,9 @@ class FakeProvider:
 
 def _fake_config(tmp_path: Path) -> Config:
     return Config(
-        profile="fake-profile",
-        access_key_id=None,
-        secret_access_key=None,
-        region="us-east-1",
+        accounts=(
+            AccountConfig(label="test", access_key_id="x", secret_access_key="y"),
+        ),
         cache_ttl_seconds=3600,
         cache_path=tmp_path / "cache.json",
         credits_path=tmp_path / "credits.json",

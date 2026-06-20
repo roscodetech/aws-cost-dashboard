@@ -10,6 +10,13 @@
   <button type="button" class="error-dismiss" onclick="this.parentElement.classList.add('hidden')">&times;</button>
 </div>
 
+{% if data and data.errors %}
+  <div class="error-banner warn">
+    <strong>Some accounts could not be loaded:</strong>
+    <ul>{% for e in data.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  </div>
+{% endif %}
+
 {% if data %}
   {# Build account_id -> credit lookup #}
   {% set credit_map = {} %}

@@ -41,7 +41,8 @@ def page(request):
         try:
             yield pg
         finally:
-            if request.node.rep_call is not None and request.node.rep_call.failed:
+            rep_call = getattr(request.node, "rep_call", None)
+            if rep_call is not None and rep_call.failed:
                 shot = ARTIFACTS_DIR / f"{request.node.name}.png"
                 try:
                     pg.screenshot(path=str(shot), full_page=True)
