@@ -1,0 +1,38 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "InventoryReadOnly",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:Describe*",
+        "s3:ListAllMyBuckets",
+        "s3:GetBucketLocation",
+        "s3:ListBucket",
+        "s3:GetBucketTagging",
+        "rds:Describe*",
+        "rds:ListTagsForResource",
+        "elasticloadbalancing:Describe*",
+        "lambda:ListFunctions",
+        "lambda:GetFunctionConfiguration",
+        "cloudwatch:GetMetricStatistics",
+        "cloudwatch:ListMetrics",
+        "cloudwatch:GetMetricData",
+        "elasticache:Describe*",
+        "ecs:List*",
+        "ecs:Describe*",
+        "eks:List*",
+        "eks:Describe*",
+        "elasticbeanstalk:Describe*",
+        "route53:List*",
+        "cloudfront:ListDistributions",
+        "dynamodb:ListTables",
+        "dynamodb:DescribeTable",
+        "sns:ListTopics",
+        "sqs:ListQueues",
+        "autoscaling:Describe*"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

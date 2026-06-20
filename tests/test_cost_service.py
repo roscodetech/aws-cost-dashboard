@@ -233,3 +233,50 @@ def test_forecast_returns_zero_on_client_error(ce):
     with stubber:
         value = CostService(_clients(ce))._forecast("111111111111")
     assert value == 0.0
+
+
+# --------------------------------------------------------------------------- #
+# historical_totals
+# --------------------------------------------------------------------------- #
+def _month_bucket(month: str, account: str, amount: str) -> dict:
+    return {
+        "TimePeriod": {"Start": f"{month}-01", "End": f"{month}-28"},
+        "Groups": [{"Keys": [account], "Metrics": _metric(amount)}],
+    }
+
+
+def test_historical_totals_sums_all_time_and_last_12(ce):
+    # 14 monthly buckets for one account, each 16.98 (one zero month to test 'since').
+    months = [
+        "2025-05", "2025-06", "2025-07", "2025-08", "2025-09", "2025-10",
+        "2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04",
+        "2026-05", "2026-06",
+    ]
+    buckets = [_month_bucket(m, "112896405283", "16.98") for m in months]
+    stubber = Stubber(ce)
+    stubber.add_response("get_cost_and_usage", {"ResultsByTime": buckets})
+    with stubber:
+        out = CostService(_clients(ce)).historical_totals()
+    t = out["112896405283"]
+    assert t["all_time"] == round(16.98 * 14, 2)
+    assert t["last_12mo"] == round(16.98 * 12, 2)
+    assert t["since"] == "2025-05"
+    stubber.assert_no_pending_responses()
+
+
+def test_historical_totals_falls_back_to_14_months(ce):
+    """First (38-month) call errors with the '14 months' message; retry succeeds."""
+    stubber = Stubber(ce)
+    stubber.add_client_error(
+        "get_cost_and_usage",
+        service_error_code="ValidationException",
+        service_message="You haven't enabled historical data beyond 14 months.",
+    )
+    stubber.add_response(
+        "get_cost_and_usage",
+        {"ResultsByTime": [_month_bucket("2026-06", "111", "5.00")]},
+    )
+    with stubber:
+        out = CostService(_clients(ce)).historical_totals()
+    assert out["111"]["all_time"] == 5.00
+    stubber.assert_no_pending_responses()

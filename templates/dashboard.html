@@ -71,6 +71,19 @@
             </div>
           </div>
 
+          {% if a.all_time_cost or a.last_12mo_cost %}
+          <div class="metrics totals-row">
+            <div class="metric">
+              <span class="metric-label">Last 12 mo</span>
+              <span class="metric-value">{{ money(a.last_12mo_cost, a.currency) }}</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">All-time{% if a.history_since %} (since {{ a.history_since }}){% endif %}</span>
+              <span class="metric-value">{{ money(a.all_time_cost, a.currency) }}</span>
+            </div>
+          </div>
+          {% endif %}
+
           <div class="chart-wrap">
             <canvas class="service-chart" data-account-id="{{ a.account_id }}"></canvas>
           </div>

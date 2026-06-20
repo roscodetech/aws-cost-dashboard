@@ -11,7 +11,7 @@ one bad credential never blanks the whole dashboard.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Protocol
 
@@ -106,6 +106,7 @@ class LiveProvider:
             names = {caller_id: account_config.label}
         cost = CostService(clients)
         account_costs = cost.account_costs(names)
+        account_costs = self._with_history(cost, account_costs)
         by_service = cost.services_by_account()
         applied = cost.credits_applied()
         account_ids = [a.account_id for a in account_costs]
@@ -113,6 +114,25 @@ class LiveProvider:
         budgets = BudgetsService(clients, caller_id).budgets()
         currency = account_costs[0].currency if account_costs else "USD"
         return _AccountSlice(account_costs, by_service, credits, budgets, currency)
+
+    def _with_history(
+        self, cost: CostService, account_costs: tuple[AccountCost, ...]
+    ) -> tuple[AccountCost, ...]:
+        """Merge all-time / last-12-month totals into each AccountCost. History is a
+        nice-to-have — if the call fails, return the costs unchanged."""
+        try:
+            history = cost.historical_totals()
+        except RuntimeError:
+            return account_costs
+        return tuple(
+            replace(
+                a,
+                last_12mo_cost=history.get(a.account_id, {}).get("last_12mo", 0.0),
+                all_time_cost=history.get(a.account_id, {}).get("all_time", 0.0),
+                history_since=history.get(a.account_id, {}).get("since"),
+            )
+            for a in account_costs
+        )
 
     def _build_credits(
         self,

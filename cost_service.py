@@ -36,6 +36,12 @@ def _first_of_last_month(d: date) -> date:
     return date(first.year, first.month - 1, 1)
 
 
+def _months_back(d: date, n: int) -> date:
+    """First day of the month n months before d's month."""
+    total = (d.year * 12 + (d.month - 1)) - n
+    return date(total // 12, total % 12 + 1, 1)
+
+
 def _iso(d: date) -> str:
     return d.isoformat()
 
@@ -123,6 +129,56 @@ class CostService:
             )
             for account_id, services in grouped.items()
         }
+
+    def historical_totals(self) -> dict[str, dict]:
+        """Per-account all-time and trailing-12-month spend.
+
+        Pulls the widest monthly window Cost Explorer allows. AWS caps the API at
+        14 months unless 'historical data beyond 14 months' is enabled (up to 38);
+        we probe wide and fall back to 14 months so the dashboard uses whatever is
+        available. Returns ``{account_id: {all_time, last_12mo, since}}``.
+        """
+        today = date.today()
+        # Widest first; step in on the "beyond N months" cap. 13 is the safe floor
+        # (14 lands exactly on the boundary and re-errors). Captures a 24-month
+        # enablement if present, else falls back to the default ~14-month window.
+        for months in (38, 24, 13):
+            start = _months_back(today, months)
+            try:
+                resp = self._ce.get_cost_and_usage(
+                    TimePeriod={"Start": _iso(start), "End": _iso(today)},
+                    Granularity="MONTHLY",
+                    Metrics=[_METRIC],
+                    GroupBy=[_LINKED_ACCOUNT],
+                )
+                break
+            except ClientError as exc:
+                if "14 months" in exc.response.get("Error", {}).get("Message", ""):
+                    continue  # extended history not enabled — fall back to 14
+                raise RuntimeError(f"Failed to fetch history: {exc}") from exc
+            except BotoCoreError as exc:
+                raise RuntimeError(f"Failed to fetch history: {exc}") from exc
+        else:
+            return {}
+
+        # account_id -> ordered list of (month, amount)
+        series: dict[str, list[tuple[str, float]]] = {}
+        for bucket in resp.get("ResultsByTime", []):
+            month = bucket["TimePeriod"]["Start"][:7]
+            for group in bucket.get("Groups", []):
+                series.setdefault(group["Keys"][0], []).append(
+                    (month, _amount(group["Metrics"]))
+                )
+
+        totals: dict[str, dict] = {}
+        for account_id, rows in series.items():
+            billed = [m for m, v in rows if v > 0.005]
+            totals[account_id] = {
+                "all_time": round(sum(v for _, v in rows), 2),
+                "last_12mo": round(sum(v for _, v in rows[-12:]), 2),
+                "since": billed[0] if billed else (rows[0][0] if rows else None),
+            }
+        return totals
 
     def credits_applied(self) -> dict[str, float]:
         today = date.today()

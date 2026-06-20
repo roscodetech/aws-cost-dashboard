@@ -9,7 +9,7 @@ account.
 
 ## What it shows
 
-- **Cost per account** — month-to-date and last month (Cost Explorer, grouped by `LINKED_ACCOUNT`).
+- **Cost per account** — month-to-date and last month, plus **last-12-month** and **all-time** totals (Cost Explorer, grouped by `LINKED_ACCOUNT`). All-time uses the widest window AWS allows: 14 months by default, up to 38 if you enable *historical data beyond 14 months* in Cost Explorer preferences.
 - **Cost by service** — per-account breakdown (doughnut chart).
 - **Credits** — real issued / remaining / estimated-remaining / expiry from the `billing:GetCredits` API, plus credits applied this month (Cost Explorer `RECORD_TYPE=Credit`). See [Credits](#credits).
 - **Forecast** — projected end-of-month spend per account.

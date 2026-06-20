@@ -18,6 +18,9 @@ class AccountCost:
     last_month_cost: float
     forecast: float
     currency: str
+    last_12mo_cost: float = 0.0
+    all_time_cost: float = 0.0
+    history_since: str | None = None  # "YYYY-MM" of earliest available month
 
 
 @dataclass(frozen=True)
