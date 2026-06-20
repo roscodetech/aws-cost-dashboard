@@ -124,12 +124,14 @@ class LiveProvider:
         """Prefer authoritative balances from billing:GetCredits; fall back to the
         manual credits.json for any account the API can't (or isn't allowed to)
         cover."""
+        api_available = True
         try:
             api = CreditsApiService(clients).credits_by_account(
                 caller_account_id, payer_account=len(account_ids) > 1
             )
         except (CreditsApiUnavailable, RuntimeError):
             api = {}
+            api_available = False
 
         manual = {c.account_id: c for c in self._credits.build(applied, account_ids)}
         result: list[CreditInfo] = []
@@ -145,6 +147,19 @@ class LiveProvider:
                         note=", ".join(a.names) or None,
                         initial_balance=a.initial,
                         estimated_remaining=a.estimated_remaining,
+                        source="api",
+                    )
+                )
+            elif api_available:
+                # GetCredits succeeded but this account has no credits — an
+                # authoritative "none", not a reason to fall back to manual entry.
+                result.append(
+                    CreditInfo(
+                        account_id=acct,
+                        applied_mtd=applied.get(acct, 0.0),
+                        remaining_balance=None,
+                        expiry=None,
+                        note=None,
                         source="api",
                     )
                 )

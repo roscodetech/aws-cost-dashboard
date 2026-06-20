@@ -84,7 +84,7 @@
               <div class="credit-row">
                 <span class="credit-label">Remaining balance{% if credit.source == 'api' %} <span class="credit-badge">live</span>{% endif %}</span>
                 <span class="credit-value">
-                  {% if credit.remaining_balance is not none %}{{ money(credit.remaining_balance, a.currency) }}{% else %}&mdash;{% endif %}
+                  {% if credit.remaining_balance is not none %}{{ money(credit.remaining_balance, a.currency) }}{% elif credit.source == 'api' %}No active credits{% else %}&mdash;{% endif %}
                 </span>
               </div>
               {% if credit.estimated_remaining is not none %}
